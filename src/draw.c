@@ -446,6 +446,10 @@ static int frame_internal_radius (int r, int w, int h)
  */
 void draw_rounded_rect(cairo_t *c, int x, int y, int width, int height, int corner_radius, double scale, bool first, bool last)
 {
+        if (width < corner_radius / 2.0) return;
+        else if (width < corner_radius) width = corner_radius;
+
+
         width = round(width * scale);
         height = round(height * scale);
         x = round(x * scale);
@@ -666,30 +670,29 @@ static void render_content(cairo_t *c, struct colored_layout *cl, int width, dou
                              x_bar_1 = frame_x + frame_width,
                              x_bar_2 = x_bar_1 + progress_width_1;
 
-                double half_frame_width = frame_width / 2.0;
+
+                int half_frame_width = floor(frame_width / 2.0);
 
                 // draw progress bar
                 // Note: the bar could be drawn a bit smaller, because the frame is drawn on top
-                // left side
-                cairo_set_source_rgba(c, cl->highlight.r, cl->highlight.g, cl->highlight.b, cl->highlight.a);
-                draw_rect(c, x_bar_1, frame_y, progress_width_1, progress_height, scale);
-                cairo_fill(c);
-                // right side
-                cairo_set_source_rgba(c, cl->bg.r, cl->bg.g, cl->bg.b, cl->bg.a);
-                draw_rect(c, x_bar_2, frame_y, progress_width_2, progress_height, scale);
-                cairo_fill(c);
+                
                 // border
                 cairo_set_source_rgba(c, cl->frame.r, cl->frame.g, cl->frame.b, cl->frame.a);
-                // TODO draw_rect instead of cairo_rectangle resulted
-                // in blurry lines due to rounding (half_frame_width
-                // can be non-integer)
-                cairo_rectangle(c,
-                                (frame_x + half_frame_width) * scale,
-                                (frame_y + half_frame_width) * scale,
-                                (progress_width - frame_width) * scale,
-                                progress_height * scale);
-                cairo_set_line_width(c, frame_width * scale);
-                cairo_stroke(c);
+                draw_rounded_rect(c, (frame_x + half_frame_width + 1), (frame_y + half_frame_width), (progress_width - frame_width), progress_height, 5, scale, true, true);
+                // cairo_stroke(c);
+                cairo_fill(c);
+
+
+                // left side
+                cairo_set_source_rgba(c, cl->highlight.r, cl->highlight.g, cl->highlight.b, cl->highlight.a);
+                // draw_rect(c, x_bar_1, frame_y, progress_width_1, progress_height, scale);
+                draw_rounded_rect(c, x_bar_1, frame_y, progress_width_1, progress_height, 5, scale, true, true);
+                cairo_fill(c);
+
+                // right side
+                // cairo_set_source_rgba(c, cl->bg.r, cl->bg.g, cl->bg.b, cl->bg.a);
+                // draw_rect(c, x_bar_2, frame_y, progress_width_2, progress_height, scale);
+                // cairo_fill(c);
         }
 }
 
