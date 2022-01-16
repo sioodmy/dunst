@@ -651,8 +651,9 @@ static void render_content(cairo_t *c, struct colored_layout *cl, int width, dou
                         image_x = settings.h_padding;
                 } // else ICON_RIGHT
 
+
                 cairo_set_source_surface(c, cl->icon, round(image_x * scale), round(image_y * scale));
-                draw_rect(c, image_x, image_y, image_width, image_height, scale);
+                draw_rounded_rect(c, image_x, image_y, image_width, image_height, 5, scale, true, true);
                 cairo_fill(c);
         }
 
@@ -678,18 +679,33 @@ static void render_content(cairo_t *c, struct colored_layout *cl, int width, dou
                 
                 // border
                 cairo_set_source_rgba(c, cl->frame.r, cl->frame.g, cl->frame.b, cl->frame.a);
-                draw_rounded_rect(c, (frame_x + half_frame_width + 1), (frame_y + half_frame_width), (progress_width - frame_width), progress_height, 5, scale, true, true);
-                // cairo_stroke(c);
+                draw_rounded_rect(c, (frame_x + half_frame_width + 1), (frame_y + half_frame_width), (progress_width - frame_width), progress_height, progress_height / 2, scale, true, true);
                 cairo_fill(c);
 
 
                 // left side
                 cairo_set_source_rgba(c, cl->highlight.r, cl->highlight.g, cl->highlight.b, cl->highlight.a);
                 // draw_rect(c, x_bar_1, frame_y, progress_width_1, progress_height, scale);
-                draw_rounded_rect(c, x_bar_1, frame_y, progress_width_1, progress_height, 5, scale, true, true);
+                draw_rounded_rect(c, x_bar_1, frame_y, progress_width_1, progress_height, progress_height / 2, scale, true, true);
                 cairo_fill(c);
 
-                // right side
+
+                // draw calls for progress bar circle
+                int circle_width = progress_height * 1.5;
+                int half_width = circle_width / 2;
+
+
+                // TODO: just replace these calls with cairo_arc
+                draw_rounded_rect(c, x_bar_2 - half_width - 1, frame_y - (half_width - (progress_height / 2)), circle_width, circle_width, half_width, scale, true, true);
+                cairo_set_source_rgba(c, cl->bg.r, cl->bg.g, cl->bg.b, cl->bg.a);
+                cairo_fill(c);
+
+                draw_rounded_rect(c, x_bar_2 - half_width, frame_y - (half_width - (progress_height / 2)), circle_width, circle_width, half_width, scale, true, true);
+                cairo_set_source_rgba(c, cl->highlight.r, cl->highlight.g, cl->highlight.b, cl->highlight.a);
+                cairo_set_line_width(c, (progress_height * 1.5) / 4);
+                cairo_stroke(c);
+
+                // // right side
                 // cairo_set_source_rgba(c, cl->bg.r, cl->bg.g, cl->bg.b, cl->bg.a);
                 // draw_rect(c, x_bar_2, frame_y, progress_width_2, progress_height, scale);
                 // cairo_fill(c);
@@ -833,4 +849,3 @@ double draw_get_scale(void)
                 return 1;
         }
 }
-/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */
