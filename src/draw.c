@@ -446,6 +446,10 @@ static int frame_internal_radius (int r, int w, int h)
  */
 void draw_rounded_rect(cairo_t *c, int x, int y, int width, int height, int corner_radius, double scale, bool first, bool last)
 {
+        if (width < corner_radius / 2.0) return;
+        else if (width < corner_radius) width = corner_radius;
+
+
         width = round(width * scale);
         height = round(height * scale);
         x = round(x * scale);
@@ -506,6 +510,24 @@ static void draw_rect(cairo_t *c, double x, double y, double width, double heigh
         cairo_rectangle(c, round(x * scale), round(y * scale), round(width * scale), round(height * scale));
 }
 
+/**
+ * Gets a secondary, darker color for gradient progress 
+ */
+static struct color get_gradient_alt(struct color c) {
+        if (c.r > c.g && c.r > c.b) {
+                struct color r = {MAX(0, c.r-.2), MAX(0, c.g-.3), MAX(0, c.b-.3)};
+                return r;
+        }
+        else if (c.g > c.r && c.g > c.b) {
+                struct color r = {MAX(0, c.r-.3), MAX(0, c.g-.2), MAX(0, c.b-.2)};
+                return r;
+        }
+
+        struct color r = {MAX(0, c.r-.3), MAX(0, c.g-.2), MAX(0, c.b-.2)};
+        return r;
+}
+
+
 static cairo_surface_t *render_background(cairo_surface_t *srf,
                                           struct colored_layout *cl,
                                           struct colored_layout *cl_next,
@@ -561,6 +583,20 @@ static cairo_surface_t *render_background(cairo_surface_t *srf,
         draw_rounded_rect(c, x, y, width, height, radius_int, scale, first, last);
         cairo_set_source_rgba(c, cl->bg.r, cl->bg.g, cl->bg.b, cl->bg.a);
         cairo_fill(c);
+
+        // if (cl->bg.a != 1.0) {
+        //         cairo_set_source_rgba(c, cl->bg.r, cl->bg.g, cl->bg.b, cl->bg.a);
+        //         cairo_fill(c);
+        // }
+        // else {
+        //         cairo_pattern_t *pat1 = cairo_pattern_create_linear(0, 0, width, 0);
+        //         cairo_pattern_add_color_stop_rgb(pat1, 0.0, cl->bg.r, cl->bg.g, cl->bg.b);
+        //         struct color grad_alt = get_gradient_alt(cl->bg);
+        //         cairo_pattern_add_color_stop_rgb(pat1, 1.0, grad_alt.r, grad_alt.g, grad_alt.b);
+        //         cairo_set_source(c, pat1);
+        //         cairo_fill(c);
+        // }
+
 
         cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
 
@@ -647,49 +683,79 @@ static void render_content(cairo_t *c, struct colored_layout *cl, int width, dou
                         image_x = settings.h_padding;
                 } // else ICON_RIGHT
 
+
                 cairo_set_source_surface(c, cl->icon, round(image_x * scale), round(image_y * scale));
-                draw_rect(c, image_x, image_y, image_width, image_height, scale);
+                draw_rounded_rect(c, image_x, image_y, image_width, image_height, 5, scale, true, true);
                 cairo_fill(c);
         }
 
         // progress bar positioning
         if (have_progress_bar(cl)){
                 int progress = MIN(cl->n->progress, 100);
+                int min_width = settings.progress_bar_height - settings.progress_bar_frame_width;
+
                 unsigned int frame_width = settings.progress_bar_frame_width,
                              progress_width = MIN(width - 2 * settings.h_padding, settings.progress_bar_max_width),
                              progress_height = settings.progress_bar_height - frame_width,
                              frame_x = settings.h_padding,
                              frame_y = settings.padding + h - settings.progress_bar_height,
                              progress_width_without_frame = progress_width - 2 * frame_width,
-                             progress_width_1 = progress_width_without_frame * progress / 100,
+                             progress_width_1 = (((progress_width_without_frame - min_width) * progress / 100) + min_width),
                              progress_width_2 = progress_width_without_frame - progress_width_1,
                              x_bar_1 = frame_x + frame_width,
                              x_bar_2 = x_bar_1 + progress_width_1;
 
-                double half_frame_width = frame_width / 2.0;
+                int half_frame_width = floor(frame_width / 2.0);
 
                 // draw progress bar
                 // Note: the bar could be drawn a bit smaller, because the frame is drawn on top
-                // left side
-                cairo_set_source_rgba(c, cl->highlight.r, cl->highlight.g, cl->highlight.b, cl->highlight.a);
-                draw_rect(c, x_bar_1, frame_y, progress_width_1, progress_height, scale);
-                cairo_fill(c);
-                // right side
-                cairo_set_source_rgba(c, cl->bg.r, cl->bg.g, cl->bg.b, cl->bg.a);
-                draw_rect(c, x_bar_2, frame_y, progress_width_2, progress_height, scale);
-                cairo_fill(c);
+
+
+                cairo_pattern_t *pat1 = cairo_pattern_create_linear(x_bar_1, 0, x_bar_2, 0);
+                struct color grad_alt = get_gradient_alt(cl->highlight);
+                cairo_pattern_add_color_stop_rgb(pat1, 0.0, cl->highlight.r, cl->highlight.g, cl->highlight.b);
+                cairo_pattern_add_color_stop_rgb(pat1, 1.0, grad_alt.r, grad_alt.g, grad_alt.b);
+
                 // border
                 cairo_set_source_rgba(c, cl->frame.r, cl->frame.g, cl->frame.b, cl->frame.a);
-                // TODO draw_rect instead of cairo_rectangle resulted
-                // in blurry lines due to rounding (half_frame_width
-                // can be non-integer)
-                cairo_rectangle(c,
-                                (frame_x + half_frame_width) * scale,
-                                (frame_y + half_frame_width) * scale,
-                                (progress_width - frame_width) * scale,
-                                progress_height * scale);
-                cairo_set_line_width(c, frame_width * scale);
-                cairo_stroke(c);
+                draw_rounded_rect(c, (frame_x + half_frame_width + 1), (frame_y + half_frame_width), (progress_width - frame_width), progress_height, progress_height / 2, scale, true, true);
+                cairo_fill(c);
+
+
+                // left side
+                cairo_set_source(c, pat1);
+                // cairo_set_source_rgba(c, cl->highlight.r, cl->highlight.g, cl->highlight.b, cl->highlight.a);
+                draw_rounded_rect(c, x_bar_1, frame_y, progress_width_1, progress_height, progress_height / 2, scale, true, true);
+                cairo_fill(c);
+ 
+                // right side
+                // cairo_set_source_rgba(c, cl->frame.r, cl->frame.g, cl->frame.b, cl->frame.a);
+                // cairo_set_source(c, pat1);
+                // draw_rounded_rect(c, x_bar_2 + 1, frame_y, progress_width_2, progress_height, progress_height / 2, scale, true, true);
+                // cairo_fill(c);
+
+                // // draw calls for progress bar circle
+                // int circle_width = progress_height * 1.4;
+                // const int circle_thickness = 3;
+                // const double degrees = M_PI / 180.0;
+
+                // // // create circle path
+                // // cairo_new_sub_path(c);
+                // // cairo_arc(c, x_bar_2, frame_y + (progress_height / 2), circle_width / 2, 0, degrees * 360);
+                // // cairo_close_path(c);
+
+                // // draw the inner, bg-colored section of the circle
+                // cairo_set_line_width(c, circle_thickness * 3);
+                // cairo_set_source_rgba(c, cl->bg.r, cl->bg.g, cl->bg.b, cl->bg.a);
+
+                // cairo_stroke_preserve(c);
+                // cairo_fill_preserve(c);
+
+
+                // // draw the highlight-colored circle outline
+                // cairo_set_source_rgba(c, cl->highlight.r, cl->highlight.g, cl->highlight.b, cl->highlight.a);
+                // cairo_set_line_width(c, circle_thickness);
+                // cairo_stroke(c);
         }
 }
 
@@ -830,4 +896,3 @@ double draw_get_scale(void)
                 return 1;
         }
 }
-/* vim: set ft=c tabstop=8 shiftwidth=8 expandtab textwidth=0: */
